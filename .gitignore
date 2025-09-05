@@ -1,0 +1,76 @@
+# =========================
+# Backend (Python)
+# =========================
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+*.egg
+
+# Logs
+*.log
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.dll
+*.dylib
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# =========================
+# Frontend (React + Vite + TS)
+# =========================
+
+# Dependencies
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+frontend/dist-ssr/
+frontend/build/
+
+# Vite cache
+frontend/.vite/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Local environment variables
+.env
+.env.local
+.env.*.local
+*.local
+
+# =========================
+# OS & Editor files
+# =========================
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VS Code / IntelliJ
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
