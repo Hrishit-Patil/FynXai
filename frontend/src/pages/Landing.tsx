@@ -92,61 +92,6 @@ export default function Landing() {
       </motion.div>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-background via-background to-muted pt-20 pb-32">
-        <div className="absolute inset-0 bg-grid-black/[0.02] bg-grid-pattern" />
-
-        <div className="container mx-auto px-6 lg:px-8 relative">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-center max-w-4xl mx-auto"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.5, type: "spring" }}
-              className="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-8"
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Transparent AI for Fair Lending
-            </motion.div>
-
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent leading-tight">
-              Explainable Credit Scoring with AI
-            </h1>
-
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Revolutionize lending decisions with our XAI framework that
-              provides transparent, interpretable credit scoring while upholding
-              fairness and ethical standards.
-            </p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6, duration: 0.5 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-            >
-              <Link to="/apply">
-                <Button size="lg" className="text-lg px-8 py-6 group">
-                  Apply for a Loan
-                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-              <Link to="/how-it-works">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="text-lg px-8 py-6"
-                >
-                  Learn How It Works
-                </Button>
-              </Link>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
       <section className="relative z-10 min-h-screen flex items-center bg-gradient-to-br from-background via-background to-muted/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -448,7 +393,7 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="relative z-10 py-20 bg-gradient-to-r from-primary to-primary/80">
+      <section className="relative z-10 py-20 bg-gradient-to-br from-primary/5 to-accent/5">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -456,11 +401,11 @@ export default function Landing() {
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-6">
               Ready for Transparent Lending?
             </h2>
 
-            <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground/90 mb-8 max-w-2xl mx-auto">
               Join hundreds of satisfied customers who experienced fair,
               explainable lending decisions.
             </p>
@@ -468,7 +413,7 @@ export default function Landing() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
-                className="bg-white text-primary hover:bg-white/90 hover-lift group"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover-lift group px-8 py-6"
                 asChild
               >
                 <Link to="/apply">
@@ -485,7 +430,7 @@ export default function Landing() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-white/20 text-white hover:bg-white/10 hover:text-white hover-lift"
+                className="border-primary/20 text-foreground hover:bg-primary/10 hover:text-foreground hover-lift px-8 py-6"
                 asChild
               >
                 <Link to="/calculator">Try Calculator</Link>
@@ -494,6 +439,7 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+
       {/* SDG Section */}
       <section className="py-16 bg-card">
         <div className="container mx-auto px-6 lg:px-8">

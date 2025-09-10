@@ -161,7 +161,7 @@ export default function Login() {
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="mt-6 grid grid-cols-1 gap-3">
                   <Button variant="outline" className="hover-lift">
                     <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                       <path
@@ -182,18 +182,6 @@ export default function Login() {
                       />
                     </svg>
                     Google
-                  </Button>
-
-                  <Button variant="outline" className="hover-lift">
-                    <svg
-                      className="h-4 w-4 mr-2"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M0 0h11.02v11.02H0zm12.98 0v11.02h11.02V0zm0 12.98v11.02h11.02V12.98zm-12.98 0v11.02h11.02V12.98z" />
-                    </svg>
-                    Microsoft
                   </Button>
                 </div>
               </div>

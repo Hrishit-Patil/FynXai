@@ -4,83 +4,85 @@
 
 @layer base {
   :root {
-    /* Core Brand Colors - Modern Fintech Palette */
-    --background: 0 0% 100%;
-    --foreground: 225 15% 15%;
+    /* Light Mode Colors - Soft Beige Fintech Palette */
+    --background: 40 40% 96%;
+    --foreground: 215 28% 15%;
 
-    /* Vibrant Primary (Blue-Violet) */
-    --primary: 250 85% 60%;
+    /* Card / Surfaces */
+    --card: 40 40% 98%;
+    --card-foreground: 215 28% 15%;
+    --popover: 40 40% 98%;
+    --popover-foreground: 215 28% 15%;
+
+    /* Primary (Brand Blue) */
+    --primary: 212 100% 45%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 250 85% 65%;
-    --primary-glow: 250 85% 70%;
+    --primary-hover: 212 100% 50%;
+    --primary-glow: 212 100% 55%;
 
-    /* Success Colors (Emerald-Cyan) */
-    --success: 160 75% 55%;
+    /* Accent (Success / Fairness - Teal) */
+    --success: 175 70% 50%;
     --success-foreground: 0 0% 100%;
-    --success-light: 160 75% 95%;
-    --success-glow: 160 75% 60%;
+    --success-light: 175 70% 90%;
+    --success-glow: 175 70% 55%;
 
-    /* Warning Colors (Amber-Orange) */
-    --warning: 35 95% 58%;
+    /* Secondary (Muted Beige-Gray) */
+    --secondary: 35 20% 90%;
+    --secondary-foreground: 215 28% 15%;
+
+    /* Muted */
+    --muted: 35 20% 88%;
+    --muted-foreground: 215 20% 45%;
+
+    /* Accent */
+    --accent: 35 20% 90%;
+    --accent-foreground: 215 28% 15%;
+
+    /* Warning (Amber) */
+    --warning: 43 96% 56%;
     --warning-foreground: 0 0% 100%;
-    --warning-light: 35 95% 95%;
-    --warning-glow: 35 95% 63%;
+    --warning-light: 43 96% 90%;
+    --warning-glow: 43 96% 61%;
 
-    /* Error Colors (Coral-Red) */
-    --destructive: 355 85% 60%;
+    /* Destructive (Red) */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --destructive-light: 355 85% 95%;
-    --destructive-glow: 355 85% 65%;
-
-    /* Neutral System - Soft Grays */
-    --card: 0 0% 100%;
-    --card-foreground: 225 15% 15%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 225 15% 15%;
-
-    --secondary: 220 15% 97%;
-    --secondary-foreground: 225 15% 15%;
-
-    --muted: 220 15% 96%;
-    --muted-foreground: 225 10% 45%;
-
-    --accent: 250 50% 96%;
-    --accent-foreground: 225 15% 15%;
+    --destructive-light: 0 84% 90%;
+    --destructive-glow: 0 84% 65%;
 
     /* Interactive Elements */
-    --border: 220 15% 91%;
-    --input: 220 15% 91%;
-    --ring: 250 85% 60%;
+    --border: 35 20% 85%;
+    --input: 35 20% 85%;
+    --ring: 212 100% 45%;
 
-    /* Modern Gradients */
+    /* Gradients */
     --gradient-primary: linear-gradient(
       135deg,
-      hsl(250 85% 60%) 0%,
-      hsl(270 85% 65%) 100%
+      hsl(212 100% 45%) 0%,
+      hsl(175 70% 50%) 100%
     );
     --gradient-hero: linear-gradient(
       135deg,
-      hsl(250 85% 60%) 0%,
-      hsl(270 85% 65%) 50%,
-      hsl(180 85% 60%) 100%
+      hsl(212 100% 45%) 0%,
+      hsl(175 70% 50%) 100%
     );
     --gradient-success: linear-gradient(
       135deg,
-      hsl(160 75% 55%) 0%,
-      hsl(180 75% 50%) 100%
+      hsl(175 70% 50%) 0%,
+      hsl(175 70% 55%) 100%
     );
     --gradient-card: linear-gradient(
       135deg,
-      hsl(0 0% 100%) 0%,
-      hsl(250 15% 98%) 100%
+      hsl(40 40% 98%) 0%,
+      hsl(0 0% 100%) 100%
     );
 
-    /* Enhanced Shadows */
-    --shadow-soft: 0 2px 12px hsl(225 15% 15% / 0.06);
-    --shadow-medium: 0 4px 20px hsl(225 15% 15% / 0.1);
-    --shadow-large: 0 8px 40px hsl(225 15% 15% / 0.15);
-    --shadow-glow: 0 0 30px hsl(250 85% 60% / 0.15);
-    --shadow-glow-hover: 0 0 40px hsl(250 85% 60% / 0.25);
+    /* Shadows */
+    --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.08);
+    --shadow-medium: 0 4px 20px rgba(0, 0, 0, 0.08);
+    --shadow-large: 0 8px 40px rgba(0, 0, 0, 0.08);
+    --shadow-glow: 0 0 30px rgba(212, 100%, 45%, 0.15);
+    --shadow-glow-hover: 0 0 40px rgba(212, 100%, 45%, 0.25);
 
     /* Animations */
     --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -92,103 +94,106 @@
     --radius-lg: 1rem;
 
     /* Sidebar System */
-    --sidebar-background: 215 20% 98%;
-    --sidebar-foreground: 215 25% 15%;
-    --sidebar-primary: 215 85% 15%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 215 20% 96%;
-    --sidebar-accent-foreground: 215 25% 15%;
-    --sidebar-border: 215 20% 89%;
-    --sidebar-ring: 215 85% 15%;
+    --sidebar-background: 40 40% 98%;
+    --sidebar-foreground: 215 28% 15%;
+    --sidebar-primary: 212 100% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 35 20% 90%;
+    --sidebar-accent-foreground: 215 28% 15%;
+    --sidebar-border: 35 20% 85%;
+    --sidebar-ring: 212 100% 45%;
   }
 
   .dark {
-    /* Dark Mode Colors - Deep Navy/Charcoal with Neon Accents */
-    --background: 225 30% 8%;
+    /* Dark Mode Colors - Sleek Fintech Contrast */
+    --background: 215 28% 8%;
     --foreground: 0 0% 95%;
 
-    /* Neon-like Primary (Cyan-Blue) */
-    --primary: 190 100% 70%;
-    --primary-foreground: 225 30% 8%;
-    --primary-hover: 190 100% 75%;
-    --primary-glow: 190 100% 80%;
-
-    /* Success Colors (Neon Green) */
-    --success: 150 100% 60%;
-    --success-foreground: 225 30% 8%;
-    --success-light: 150 100% 12%;
-    --success-glow: 150 100% 65%;
-
-    /* Warning Colors (Neon Orange) */
-    --warning: 30 100% 65%;
-    --warning-foreground: 225 30% 8%;
-    --warning-light: 30 100% 12%;
-    --warning-glow: 30 100% 70%;
-
-    /* Error Colors (Neon Pink) */
-    --destructive: 340 100% 65%;
-    --destructive-foreground: 225 30% 8%;
-    --destructive-light: 340 100% 12%;
-    --destructive-glow: 340 100% 70%;
-
-    /* Dark Cards & Surfaces */
-    --card: 225 25% 12%;
+    /* Card / Surfaces */
+    --card: 215 28% 10%;
     --card-foreground: 0 0% 95%;
-    --popover: 225 25% 12%;
+    --popover: 215 28% 10%;
     --popover-foreground: 0 0% 95%;
 
-    --secondary: 225 20% 16%;
+    /* Primary (Bright Fintech Blue) */
+    --primary: 212 100% 60%;
+    --primary-foreground: 215 28% 8%;
+    --primary-hover: 212 100% 65%;
+    --primary-glow: 212 100% 70%;
+
+    /* Accent (Teal) */
+    --success: 175 70% 55%;
+    --success-foreground: 215 28% 8%;
+    --success-light: 175 70% 15%;
+    --success-glow: 175 70% 60%;
+
+    /* Secondary (Slate Gray-Blues) */
+    --secondary: 215 28% 15%;
     --secondary-foreground: 0 0% 95%;
 
-    --muted: 225 15% 18%;
-    --muted-foreground: 225 10% 65%;
+    /* Muted */
+    --muted: 215 28% 12%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 225 25% 16%;
+    /* Accent */
+    --accent: 215 28% 15%;
     --accent-foreground: 0 0% 95%;
 
-    --border: 225 20% 20%;
-    --input: 225 20% 20%;
-    --ring: 190 100% 70%;
+    /* Warning (Amber) */
+    --warning: 43 96% 60%;
+    --warning-foreground: 215 28% 8%;
+    --warning-light: 43 96% 15%;
+    --warning-glow: 43 96% 65%;
 
-    /* Dark Gradients - Neon Style */
+    /* Destructive (Red) */
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 215 28% 8%;
+    --destructive-light: 0 84% 15%;
+    --destructive-glow: 0 84% 70%;
+
+    /* Interactive Elements */
+    --border: 215 28% 20%;
+    --input: 215 28% 20%;
+    --ring: 212 100% 60%;
+
+    /* Gradients */
     --gradient-primary: linear-gradient(
       135deg,
-      hsl(190 100% 70%) 0%,
-      hsl(270 100% 75%) 100%
+      hsl(212 100% 60%) 0%,
+      hsl(175 70% 55%) 100%
     );
     --gradient-hero: linear-gradient(
       135deg,
-      hsl(225 30% 8%) 0%,
-      hsl(190 100% 20%) 50%,
-      hsl(270 100% 25%) 100%
+      hsl(215 28% 8%) 0%,
+      hsl(212 100% 60%) 100%
     );
     --gradient-success: linear-gradient(
       135deg,
-      hsl(150 100% 60%) 0%,
-      hsl(180 100% 55%) 100%
+      hsl(175 70% 55%) 0%,
+      hsl(175 70% 60%) 100%
     );
     --gradient-card: linear-gradient(
       135deg,
-      hsl(225 25% 12%) 0%,
-      hsl(225 20% 15%) 100%
+      hsl(215 28% 10%) 0%,
+      hsl(175 70% 55%) 100%
     );
 
-    /* Enhanced Dark Shadows with Glow */
-    --shadow-soft: 0 2px 15px hsl(0 0% 0% / 0.3);
-    --shadow-medium: 0 4px 25px hsl(0 0% 0% / 0.4);
-    --shadow-large: 0 8px 50px hsl(0 0% 0% / 0.5);
-    --shadow-glow: 0 0 35px hsl(190 100% 70% / 0.2);
-    --shadow-glow-hover: 0 0 50px hsl(190 100% 70% / 0.3);
+    /* Shadows */
+    --shadow-soft: 0 2px 15px rgba(0, 0, 0, 0.3);
+    --shadow-medium: 0 4px 25px rgba(0, 0, 0, 0.4);
+    --shadow-large: 0 8px 50px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 35px rgba(212, 100%, 60%, 0.2);
+    --shadow-glow-hover: 0 0 50px rgba(212, 100%, 60%, 0.3);
 
     /* Dark Sidebar */
-    --sidebar-background: 225 25% 12%;
+    --sidebar-background: 215 28% 10%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 190 100% 70%;
-    --sidebar-primary-foreground: 225 30% 8%;
-    --sidebar-accent: 225 20% 16%;
+    --sidebar-primary: 212 100% 60%;
+    --sidebar-primary-foreground: 215 28% 8%;
+    --sidebar-accent: 215 28% 15%;
     --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 225 20% 20%;
-    --sidebar-ring: 190 100% 70%;
+    --sidebar-border: 215 28% 20%;
+    --sidebar-ring: 212 100% 60%;
   }
 }
 
