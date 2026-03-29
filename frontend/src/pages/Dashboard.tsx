@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,45 +20,122 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/supabaseClient";
 
 export default function Dashboard() {
-  // Mock data - in real app, fetch from API
-  const applications = [
-    {
-      id: "app_001",
-      amount: "₹5,00,000",
-      status: "approved",
-      score: 720,
-      date: "2025-01-15",
-      emi: "₹15,234",
-    },
-    {
-      id: "app_002",
-      amount: "₹2,50,000",
-      status: "under_review",
-      score: 650,
-      date: "2025-01-20",
-      emi: "₹7,890",
-    },
-    {
-      id: "app_003",
-      amount: "₹1,00,000",
-      status: "pending",
-      score: null,
-      date: "2025-01-22",
-      emi: null,
-    },
-    {
-      id: "app_004",
-      amount: "₹1,00,000",
-      status: "error",
-      score: null,
-      date: "2025-01-25",
-      emi: null,
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    approvalRate: 0,
+    avgProcessing: "2 mins",
+  });
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // 1. Get User
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // If no user, stop loading and return (Prevents crash if logged out)
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      setUser(user);
+
+      // 2. Fetch Loans
+      const { data: loanData, error } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (loanData && loanData.length > 0) {
+        // 3. Transform Data for UI
+        const formattedApps = loanData.map((loan: any) => {
+          
+          const P = Number(loan.loan_amount) || 0;
+          const N = Number(loan.loan_tenure) || 0;
+          let emiVal = 0;
+
+          if (P > 0 && N > 0) {
+            const R = 10.5 / 12 / 100; 
+            try {
+              const numerator = P * R * Math.pow(1 + R, N);
+              const denominator = Math.pow(1 + R, N) - 1;
+              if (denominator !== 0) {
+                emiVal = numerator / denominator;
+              }
+            } catch (e) {
+              console.warn("EMI Calc error", e);
+            }
+          }
+
+          // --- NAME GENERATION LOGIC ---
+          const displayName = `${loan.first_name || 'User'}_${loan.loan_purpose || 'Loan'}`;
+
+          // --- STATUS LOGIC ---
+          const decision = loan.officer_decision?.toLowerCase();
+          const processStatus = loan.loan_status?.toLowerCase();
+          
+          let displayStatus = 'pending';
+
+          // Priority 1: Officer Decision
+          if (decision === 'approved' || decision === 'rejected') {
+             displayStatus = decision;
+          } 
+          // Priority 2: Submitted / Under Review
+          else if (processStatus === 'under_review' || processStatus === 'submitted') {
+             displayStatus = 'under_review';
+          }
+          // Priority 3: Default Pending
+
+          return {
+            id: loan.application_id || loan.id,
+            appName: displayName,
+            amount: `₹${P.toLocaleString('en-IN')}`,
+            
+            // Updated Status
+            status: displayStatus,
+            
+            score: loan.credit_score,
+            date: loan.created_at || new Date().toISOString(),
+            emi: `₹${Math.round(emiVal).toLocaleString('en-IN')}`,
+            rawStatus: loan.loan_status?.toLowerCase() || 'pending'
+          };
+        });
+
+        setApplications(formattedApps);
+
+        // 4. Calculate Stats
+        const total = formattedApps.length;
+        const approved = formattedApps.filter((a: any) => a.status === 'approved').length;
+        const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
+
+        setStats(prev => ({
+          ...prev,
+          total,
+          approvalRate: rate
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -65,39 +143,55 @@ export default function Dashboard() {
         return {
           label: "Approved",
           variant: "default" as const,
-          color: "text-success",
+          color: "text-green-600",
           icon: CheckCircle,
         };
       case "under_review":
+      case "submitted":
         return {
           label: "Under Review",
           variant: "secondary" as const,
-          color: "text-warning",
+          color: "text-yellow-600",
           icon: Clock,
         };
       case "pending":
         return {
           label: "Pending",
           variant: "outline" as const,
-          color: "text-muted-foreground",
-          icon: AlertCircle,
+          color: "text-blue-600",
+          icon: Clock,
+        };
+      case "rejected":
+        return {
+          label: "Rejected",
+          variant: "destructive" as const,
+          color: "text-red-600",
+          icon: XCircle,
         };
       case "error":
         return {
           label: "Error",
           variant: "destructive" as const,
-          color: "text-destructive",
+          color: "text-red-600",
           icon: AlertCircle,
         };
       default:
         return {
-          label: "Unknown",
+          label: status,
           variant: "outline" as const,
           color: "text-muted-foreground",
           icon: AlertCircle,
         };
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/20 py-8">
@@ -113,15 +207,15 @@ export default function Dashboard() {
             <div>
               <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
               <p className="text-muted-foreground">
-                Manage your loan applications and track your progress
+                Welcome back, {user?.user_metadata?.first_name || user?.email || "Applicant"}
               </p>
             </div>
 
             <Button className="hover-lift" asChild>
-              <a href="/apply">
+              <Link to="/apply">
                 <Plus className="mr-2 h-4 w-4" />
                 New Application
-              </a>
+              </Link>
             </Button>
           </div>
         </motion.div>
@@ -143,7 +237,7 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground">
                       Total Applications
                     </p>
-                    <p className="text-2xl font-bold">{applications.length}</p>
+                    <p className="text-2xl font-bold">{stats.total}</p>
                   </div>
                 </div>
               </CardContent>
@@ -158,14 +252,14 @@ export default function Dashboard() {
             <Card className="hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-success/10 rounded-full">
-                    <TrendingUp className="h-6 w-6 text-success" />
+                  <div className="p-3 bg-green-500/10 rounded-full">
+                    <TrendingUp className="h-6 w-6 text-green-600" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Approval Rate
                     </p>
-                    <p className="text-2xl font-bold">95%</p>
+                    <p className="text-2xl font-bold">{stats.approvalRate}%</p>
                   </div>
                 </div>
               </CardContent>
@@ -180,14 +274,14 @@ export default function Dashboard() {
             <Card className="hover-lift">
               <CardContent className="p-6">
                 <div className="flex items-center space-x-4">
-                  <div className="p-3 bg-warning/10 rounded-full">
-                    <Clock className="h-6 w-6 text-warning" />
+                  <div className="p-3 bg-yellow-500/10 rounded-full">
+                    <Clock className="h-6 w-6 text-yellow-600" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Avg Processing
                     </p>
-                    <p className="text-2xl font-bold">2 mins</p>
+                    <p className="text-2xl font-bold">{stats.avgProcessing}</p>
                   </div>
                 </div>
               </CardContent>
@@ -216,7 +310,7 @@ export default function Dashboard() {
 
                   return (
                     <motion.div
-                      key={app.id}
+                      key={app.id || index}
                       className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -229,7 +323,9 @@ export default function Dashboard() {
                           </div>
 
                           <div>
-                            <p className="font-medium">{app.id}</p>
+                            <p className="font-medium text-sm md:text-base">
+                              {app.appName}
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               Applied on{" "}
                               {new Date(app.date).toLocaleDateString()}
@@ -275,38 +371,29 @@ export default function Dashboard() {
                           </div>
 
                           <div className="flex space-x-2">
-                            {app.status === "approved" && (
+                            {(app.status === "approved" || app.status === "rejected") && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="hover-lift"
+                                asChild
                               >
-                                <Eye className="h-3 w-3 mr-1" />
-                                <Link to="/result/:appId">View</Link>
+                                <Link to={`/result/${app.id}`}>View</Link>
                               </Button>
                             )}
-                            {app.status === "approved" && (
-                              <Button
+                            
+                            {/* Docs Link */}
+                            {app.id && (
+                                <Button
                                 size="sm"
                                 variant="outline"
                                 className="hover-lift"
-                              >
-                                <Download className="h-3 w-3 mr-1" />
-                                Report
-                              </Button>
-                            )}
-
-                            {app.status === "error" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="hover-lift"
-                              >
-                                <Eye className="h-3 w-3 mr-1" />
-                                <Link to="/documents/:appId">
-                                  View Documents
+                                asChild
+                                >
+                                <Link to={`/documents/${app.id}`}>
+                                    Docs
                                 </Link>
-                              </Button>
+                                </Button>
                             )}
                           </div>
                         </div>
@@ -331,7 +418,7 @@ export default function Dashboard() {
                 })}
               </div>
 
-              {applications.length === 0 && (
+              {!loading && applications.length === 0 && (
                 <div className="text-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
@@ -342,10 +429,10 @@ export default function Dashboard() {
                     transparency
                   </p>
                   <Button asChild>
-                    <a href="/apply">
+                    <Link to="/apply">
                       <Plus className="mr-2 h-4 w-4" />
                       Apply for Loan
-                    </a>
+                    </Link>
                   </Button>
                 </div>
               )}

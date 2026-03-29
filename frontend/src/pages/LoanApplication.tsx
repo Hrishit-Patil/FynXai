@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, User, FileText, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, User, FileText, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,27 +10,85 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/supabaseClient';
+import { toast } from 'sonner';
 
 export default function LoanApplication() {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Files state (6 Fields, handling arrays for multiple)
+  const [files, setFiles] = useState<{ [key: string]: File | File[] | null }>({
+    aadhaar: [],
+    pan_card: null,
+    bank_statement: null,
+    salary_slip_m1: null,
+    salary_slip_m2: null,
+    salary_slip_m3: null,
+  });
+
   const [formData, setFormData] = useState({
-    // Basic Info
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     dateOfBirth: '',
     panNumber: '',
-    
-    // Loan Details
     amount: 500000,
     tenure: 36,
     purpose: '',
     monthlyIncome: 50000,
-    
-    // Documents
-    uploadedDocs: []
   });
+
+  // --- SECURITY CHECK ---
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          toast.error("Please login to apply.");
+          navigate('/login');
+          return;
+        }
+
+        // Fetch Role
+        const { data: userProfile, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+           console.error("Error fetching role", error);
+        }
+
+        if (userProfile) {
+          const profile = userProfile as any;
+          const role = profile.role; 
+          
+          if (role === 'Admin') {
+            toast.error("Admins cannot apply for loans.");
+            navigate('/admin');
+            return;
+          }
+          if (role === 'Officer') {
+            toast.error("Officers cannot apply for loans.");
+            navigate('/officer');
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Auth check failed", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAccess();
+  }, [navigate]);
 
   const steps = [
     { id: 1, title: 'Basic Info', icon: User, description: 'Personal information' },
@@ -39,17 +98,20 @@ export default function LoanApplication() {
   ];
 
   const loanPurposes = [
-    'Personal Loan',
-    'Home Loan', 
-    'Car Loan',
-    'Business Loan',
-    'Education Loan',
-    'Medical Emergency',
-    'Debt Consolidation',
-    'Other'
+    'Personal Loan', 'Home Loan', 'Car Loan', 'Business Loan',
+    'Education Loan', 'Medical Emergency', 'Debt Consolidation', 'Other'
   ];
 
-  // EMI Calculation
+  // 6 Document Blocks (Aadhaar is grouped)
+  const docTypes = [
+    { id: 'aadhaar', title: 'Aadhaar Card', required: true, multiple: true },
+    { id: 'pan_card', title: 'PAN Card', required: true, multiple: false },
+    { id: 'bank_statement', title: 'Bank Statement (6 months)', required: true, multiple: false },
+    { id: 'salary_slip_m1', title: 'Salary Slip (Month 1)', required: true, multiple: false },
+    { id: 'salary_slip_m2', title: 'Salary Slip (Month 2)', required: true, multiple: false },
+    { id: 'salary_slip_m3', title: 'Salary Slip (Month 3)', required: true, multiple: false }
+  ];
+
   const calculateEMI = (principal: number, rate: number, tenure: number) => {
     const monthlyRate = rate / (12 * 100);
     const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenure)) / 
@@ -67,6 +129,168 @@ export default function LoanApplication() {
   const prevStep = () => {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
+
+  // --- UPDATED FILE HANDLER ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, docId: string, isMultiple?: boolean) => {
+    if (e.target.files && e.target.files.length > 0) {
+      if (isMultiple) {
+        const selectedFiles = Array.from(e.target.files);
+        if (selectedFiles.length !== 2) {
+          toast.error("Please select exactly 2 files for Aadhaar (Front and Back).");
+          e.target.value = ''; // Reset input so they can retry easily
+          return;
+        }
+        setFiles(prev => ({
+          ...prev,
+          [docId]: selectedFiles
+        }));
+        toast.success("Both Aadhaar files selected!");
+      } else {
+        setFiles(prev => ({
+          ...prev,
+          [docId]: e.target.files![0]
+        }));
+        toast.success("File selected");
+      }
+    }
+  };
+
+  // --- SUBMISSION HANDLER ---
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Auth Check
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("You must be logged in to apply.");
+        navigate('/login');
+        return;
+      }
+
+      // 2. File Validation
+      const missingFiles = docTypes.filter(doc => {
+        if (doc.multiple) {
+            const f = files[doc.id] as File[];
+            return !f || f.length !== 2;
+        }
+        return !files[doc.id];
+      });
+
+      if (missingFiles.length > 0) {
+        toast.error(`Please upload valid files for: ${missingFiles.map(d => d.title).join(", ")}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 3. Upload to Storage
+      const documentPaths: { [key: string]: string } = {};
+
+      for (const doc of docTypes) {
+        const fileData = files[doc.id];
+        if (!fileData) continue;
+
+        if (doc.multiple && Array.isArray(fileData)) {
+            // Upload Front and Back separately using exact backend keys
+            const frontFile = fileData[0];
+            const backFile = fileData[1];
+
+            // Upload Front
+            const frontExt = frontFile.name.split('.').pop();
+            const frontPath = `${user.id}/${Date.now()}_aadhaar_front.${frontExt}`;
+            const { error: frontErr, data: frontData } = await supabase.storage.from('loan_documents').upload(frontPath, frontFile);
+            if (frontErr) throw frontErr;
+            documentPaths['aadhaar_front'] = frontData.path;
+
+            // Upload Back
+            const backExt = backFile.name.split('.').pop();
+            const backPath = `${user.id}/${Date.now()}_aadhaar_back.${backExt}`;
+            const { error: backErr, data: backData } = await supabase.storage.from('loan_documents').upload(backPath, backFile);
+            if (backErr) throw backErr;
+            documentPaths['aadhaar_back'] = backData.path;
+            
+        } else {
+            const file = fileData as File;
+            const fileExt = file.name.split('.').pop();
+            const filePath = `${user.id}/${Date.now()}_${doc.id}.${fileExt}`;
+
+            const { error: uploadError, data } = await supabase.storage
+              .from('loan_documents')
+              .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+            documentPaths[doc.id] = data.path;
+        }
+      }
+
+      // 4. Insert into Database
+      const { data: rawData, error: insertError } = await supabase
+        .from('loans')
+        .insert({
+          user_id: user.id,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          phone_number: formData.phone,      
+          date_of_birth: formData.dateOfBirth, 
+          pan_number: formData.panNumber,
+          loan_amount: formData.amount,      
+          loan_tenure: formData.tenure,      
+          loan_purpose: formData.purpose,
+          monthly_income: formData.monthlyIncome,
+          loan_status: 'pending',
+          document_urls: documentPaths
+        } as any)
+        .select();
+
+      if (insertError) throw insertError;
+
+      const safeRawData = rawData as any;
+      const loanData = Array.isArray(safeRawData) ? safeRawData[0] : safeRawData;
+      
+      if (!loanData || !loanData.application_id) {
+        console.error("Supabase Response:", rawData);
+        throw new Error("Failed to retrieve Application ID. Check DB column name.");
+      }
+
+      const loanId = loanData.application_id;
+      console.log("✅ Loan Created with ID:", loanId);
+
+      // 5. Trigger Python OCR Backend
+      try {
+        console.log("🚀 Sending request to OCR Backend...");
+        
+        await fetch('http://127.0.0.1:8000/trigger-ocr', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ loan_id: loanId }), 
+        });
+
+        console.log("✅ OCR Backend Triggered Successfully");
+
+      } catch (err) {
+        console.error("❌ Failed to connect to OCR Backend:", err);
+      }
+
+      toast.success("Application Submitted Successfully!");
+      navigate('/dashboard');
+
+    } catch (error: any) {
+      console.error("Submission Error:", error);
+      toast.error(error.message || "Failed to submit application");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-24 px-4">
@@ -258,13 +482,18 @@ export default function LoanApplication() {
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
                         <Label htmlFor="purpose">Loan Purpose</Label>
-                        <Select value={formData.purpose} onValueChange={(value) => setFormData({...formData, purpose: value})}>
+                        <Select 
+                          value={formData.purpose} 
+                          onValueChange={(value) => setFormData({...formData, purpose: value})}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select loan purpose" />
                           </SelectTrigger>
                           <SelectContent>
-                            {loanPurposes.map(purpose => (
-                              <SelectItem key={purpose} value={purpose}>{purpose}</SelectItem>
+                            {loanPurposes.map((purpose) => (
+                              <SelectItem key={purpose} value={purpose}>
+                                {purpose}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -284,7 +513,7 @@ export default function LoanApplication() {
                 </motion.div>
               )}
 
-              {/* Step 3: Documents */}
+              {/* Step 3: Documents (Updated to 6 blocks) */}
               {currentStep === 3 && (
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
@@ -297,37 +526,45 @@ export default function LoanApplication() {
                   </h2>
                   
                   <div className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {[
-                        { title: 'Aadhaar Card', required: true },
-                        { title: 'PAN Card', required: true },
-                        { title: 'Bank Statement (6 months)', required: true },
-                        { title: 'Salary Slips / Form 16', required: true },
-                      ].map((doc, index) => (
-                        <div key={index} className="border-2 border-dashed border-muted rounded-lg p-6 text-center hover-lift cursor-pointer">
-                          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="font-semibold mb-2">
+                    <div className="grid md:grid-cols-3 gap-6">
+                      {docTypes.map((doc) => (
+                        <div key={doc.id} className="relative border-2 border-dashed border-muted rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer group">
+                          
+                          <input 
+                            type="file" 
+                            accept=".pdf,image/*"
+                            multiple={doc.multiple}
+                            onChange={(e) => handleFileChange(e, doc.id, doc.multiple)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          
+                          <Upload className={`w-8 h-8 mx-auto mb-4 ${
+                              files[doc.id] && (!doc.multiple || (Array.isArray(files[doc.id]) && files[doc.id].length > 0)) 
+                                ? 'text-green-500' 
+                                : 'text-muted-foreground'
+                           }`} />
+                          <h3 className="font-semibold mb-2 text-xl">
                             {doc.title}
                             {doc.required && <span className="text-red-500 ml-1">*</span>}
                           </h3>
                           <p className="text-sm text-muted-foreground mb-4">
-                            PDF only, max 20MB
+                            {files[doc.id] && (!doc.multiple || (Array.isArray(files[doc.id]) && files[doc.id].length > 0)) ? (
+                              <span className="text-green-600 font-medium truncate block max-w-[200px] mx-auto">
+                                {doc.multiple ? `${(files[doc.id] as File[]).length} files selected` : (files[doc.id] as File).name}
+                              </span>
+                            ) : (
+                              doc.multiple ? "Select 2 Images/PDFs (Front & Back)" : "PDF or Image, max 10MB"
+                            )}
                           </p>
-                          <Button variant="outline" size="sm">
-                            Choose File
+                          <Button 
+                             variant={files[doc.id] && (!doc.multiple || (Array.isArray(files[doc.id]) && files[doc.id].length > 0)) ? "default" : "outline"} 
+                             size="sm" 
+                             className="pointer-events-none"
+                          >
+                            {files[doc.id] && (!doc.multiple || (Array.isArray(files[doc.id]) && files[doc.id].length > 0)) ? "File Selected" : "Choose File"}
                           </Button>
                         </div>
                       ))}
-                    </div>
-
-                    <div className="p-4 bg-muted/50 rounded-lg">
-                      <h4 className="font-semibold mb-2">📋 Document Guidelines</h4>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• All documents must be clear and readable</li>
-                        <li>• Upload recent documents (not older than 3 months)</li>
-                        <li>• Ensure PAN and Aadhaar names match</li>
-                        <li>• Bank statements should show regular income credits</li>
-                      </ul>
                     </div>
                   </div>
                 </motion.div>
@@ -377,8 +614,20 @@ export default function LoanApplication() {
                       </div>
                     </div>
 
-                    <Button size="lg" className="w-full hover-lift">
-                      Submit Application
+                    <Button 
+                      size="lg" 
+                      className="w-full hover-lift" 
+                      onClick={handleSubmit}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Submitting Application...
+                        </>
+                      ) : (
+                        "Submit Application"
+                      )}
                     </Button>
                   </div>
                 </motion.div>
@@ -389,7 +638,7 @@ export default function LoanApplication() {
                 <Button
                   variant="outline"
                   onClick={prevStep}
-                  disabled={currentStep === 1}
+                  disabled={currentStep === 1 || isSubmitting}
                   className="flex items-center gap-2"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -400,14 +649,13 @@ export default function LoanApplication() {
                   <Button
                     onClick={nextStep}
                     className="flex items-center gap-2 hover-lift"
+                    disabled={isSubmitting}
                   >
                     Next
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 ) : (
-                  <Button className="hover-lift">
-                    Submit Application
-                  </Button>
+                  <></>
                 )}
               </div>
             </Card>
