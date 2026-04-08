@@ -24,6 +24,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ApplicationDetail from "./pages/ApplicationDetail";
 import NotFound from "./pages/NotFound";
 import ScrollToTop from "./components/layout/ScrollToTop";
+
+
 const queryClient = new QueryClient();
 
 const App = () => (

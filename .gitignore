@@ -6,7 +6,12 @@
 venv/
 ENV/
 env/
+.env/
 .venv/
+myenv/
+backend/myenv/
+backend/.env
+frontend/src/supabaseClient.ts
 
 # Python cache
 __pycache__/
@@ -35,6 +40,7 @@ __pycache__/
 
 # Dependencies
 frontend/node_modules/
+backend/node_modules/
 
 # Build output
 frontend/dist/
