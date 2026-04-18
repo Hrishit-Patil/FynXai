@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Mail,
@@ -6,6 +7,7 @@ import {
   FileText,
   HelpCircle,
   Clock,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,8 +20,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { supabase } from "@/supabaseClient";
+import { toast } from "sonner";
 
 export default function Support() {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [applicationId, setApplicationId] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [evidence, setEvidence] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const contactMethods = [
     {
       icon: Mail,
@@ -86,6 +99,90 @@ export default function Support() {
         "No, we believe in complete transparency. All fees are clearly mentioned upfront with no hidden charges. You pay only the application processing fee based on your chosen plan.",
     },
   ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error("Please log in to submit a support request.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // --- NEW: Ownership Verification logic ---
+      const trimmedAppId = applicationId.trim();
+      
+      if (trimmedAppId !== "") {
+        const { data: verifiedLoan, error: verificationError } = await supabase
+          .from('loans')
+          .select('application_id')
+          .eq('application_id', trimmedAppId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (verificationError || !verifiedLoan) {
+          toast.error("Invalid Application ID. Please check the ID and try again.");
+          setIsSubmitting(false);
+          return; // Abort submission
+        }
+      }
+      // --- END NEW ---
+
+      let evidencePath = null;
+
+      // 1. Upload Evidence if it exists
+      if (evidence) {
+        const fileExt = evidence.name.split('.').pop();
+        const filePath = `${user.id}/${Date.now()}_evidence.${fileExt}`;
+        
+        const { error: uploadError, data } = await supabase.storage
+          .from('support_documents')
+          .upload(filePath, evidence);
+
+        if (uploadError) throw uploadError;
+        evidencePath = data.path;
+      }
+
+      // 2. Insert to Database
+      const { error: insertError } = await supabase
+        .from('support')
+        .insert({
+          user_id: user.id,
+          full_name: fullName,
+          email: email,
+          phone: phone,
+          application_id: trimmedAppId || null,
+          subject: subject,
+          message: message,
+          evidence_path: evidencePath
+        });
+
+      if (insertError) throw insertError;
+
+      toast.success("Support request submitted successfully!");
+      
+      // Reset Form
+      setFullName("");
+      setEmail("");
+      setPhone("");
+      setApplicationId("");
+      setSubject("");
+      setMessage("");
+      setEvidence(null);
+      const fileInput = document.getElementById('evidence') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+
+    } catch (error: any) {
+      console.error("Support submission error:", error);
+      toast.error(error.message || "Failed to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -165,11 +262,17 @@ export default function Support() {
             transition={{ duration: 0.6, delay: 0.3 }}
           >
             <Card className="p-8">
-              <form className="space-y-6">
+              <form className="space-y-6" onSubmit={handleSubmit}>
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" placeholder="Enter your full name" />
+                    <Input 
+                      id="name" 
+                      placeholder="Enter your full name" 
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                    />
                   </div>
                   <div>
                     <Label htmlFor="email">Email</Label>
@@ -177,6 +280,9 @@ export default function Support() {
                       id="email"
                       type="email"
                       placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
                     />
                   </div>
                 </div>
@@ -184,7 +290,13 @@ export default function Support() {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" placeholder="Enter your phone number" />
+                    <Input 
+                      id="phone" 
+                      placeholder="Enter your phone number" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                    />
                   </div>
                   <div>
                     <Label htmlFor="application-id">
@@ -193,13 +305,21 @@ export default function Support() {
                     <Input
                       id="application-id"
                       placeholder="Enter your application ID"
+                      value={applicationId}
+                      onChange={(e) => setApplicationId(e.target.value)}
                     />
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor="subject">Subject</Label>
-                  <Input id="subject" placeholder="What is this regarding?" />
+                  <Input 
+                    id="subject" 
+                    placeholder="What is this regarding?" 
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div>
@@ -208,21 +328,38 @@ export default function Support() {
                     id="message"
                     placeholder="Please describe your issue or question in detail..."
                     className="min-h-32"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="evidence">Attach Evidence (PDF only)</Label>
-                  <Input id="evidence" type="file" accept=".pdf" />
+                  <Label htmlFor="evidence">Attach Evidence (PDF or Image)</Label>
+                  <Input 
+                    id="evidence" 
+                    type="file" 
+                    accept=".pdf,image/*" 
+                    onChange={(e) => setEvidence(e.target.files ? e.target.files[0] : null)}
+                  />
                   <p className="text-sm text-muted-foreground mt-2">
-                    For disputes, please attach relevant documents to support
+                    For disputes, please attach relevant documents or screenshots to support
                     your case.
                   </p>
                 </div>
 
-                <Button type="submit" size="lg" className="w-full hover-lift">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Submit Request
+                <Button type="submit" size="lg" className="w-full hover-lift" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Submit Request
+                    </>
+                  )}
                 </Button>
               </form>
             </Card>
@@ -278,7 +415,6 @@ export default function Support() {
           </motion.div>
         </div>
       </section>
-
     </div>
   );
 }
