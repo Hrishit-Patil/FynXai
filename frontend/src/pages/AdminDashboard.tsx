@@ -29,6 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
   Users,
   Clock,
   CheckCircle,
@@ -40,6 +47,9 @@ import {
   Search,
   Loader2,
   Trash2,
+  MessageSquare,
+  Eye,
+  BarChart3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/supabaseClient";
@@ -52,10 +62,10 @@ const modelVersions = [
 ];
 
 const auditLogs = [
-  { time: "2025-01-15 14:30", user: "admin@fynxai.com", action: "Model deployed: v2.3.1", type: "deploy" },
-  { time: "2025-01-15 12:15", user: "officer@fynxai.com", action: "Application APP001 approved", type: "approval" },
-  { time: "2025-01-15 10:45", user: "admin@fynxai.com", action: "User created: newuser@fynxai.com", type: "user" },
-  { time: "2025-01-14 16:20", user: "admin@fynxai.com", action: "Fairness alert: Rural approval rate below threshold", type: "alert" },
+  { time: "2025-01-15 14:30", user: "admin@platform.com", action: "Model deployed: v2.3.1", type: "deploy" },
+  { time: "2025-01-15 12:15", user: "officer@platform.com", action: "Application APP001 approved", type: "approval" },
+  { time: "2025-01-15 10:45", user: "admin@platform.com", action: "User created: newuser@platform.com", type: "user" },
+  { time: "2025-01-14 16:20", user: "admin@platform.com", action: "Fairness alert: Rural approval rate below threshold", type: "alert" },
 ];
 
 export default function AdminDashboard() {
@@ -71,6 +81,14 @@ export default function AdminDashboard() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPhone, setNewUserPhone] = useState("");
   const [newUserRole, setNewUserRole] = useState("Officer");
+
+  // Support Request States
+  const [supportRequests, setSupportRequests] = useState<any[]>([]);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+
+  // Feedback States
+  const [feedbackStats, setFeedbackStats] = useState({ helpful: 0, notHelpful: 0, total: 0 });
 
   // Dynamic State for Top Metrics
   const [dynamicMetrics, setDynamicMetrics] = useState([
@@ -88,6 +106,8 @@ export default function AdminDashboard() {
     fetchAdminStats();
     fetchLoans();
     fetchOfficers();
+    fetchSupportRequests();
+    fetchFeedbackStats();
   }, []);
 
   const fetchAdminStats = async () => {
@@ -158,6 +178,86 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error("Error fetching users:", error);
     }
+  };
+
+  const fetchSupportRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('support')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSupportRequests(data || []);
+    } catch (error) {
+      console.error("Error fetching support requests:", error);
+    }
+  };
+
+  const fetchFeedbackStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('is_helpful');
+
+      if (error) throw error;
+
+      if (data) {
+        const helpful = data.filter((item) => item.is_helpful === true).length;
+        const notHelpful = data.filter((item) => item.is_helpful === false).length;
+        setFeedbackStats({
+          helpful,
+          notHelpful,
+          total: data.length
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching feedback stats:", error);
+    }
+  };
+
+  const handleViewSupportDocument = async (path: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('support_documents')
+        .createSignedUrl(path, 60);
+
+      if (error) throw error;
+      
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      } else {
+        toast.error("URL generation failed");
+      }
+    } catch (err) {
+      console.error("Error opening document:", err);
+      toast.error("Could not open document.");
+    }
+  };
+
+  const handleCloseSupportRequest = async (id: string) => {
+    try {
+      toast.loading("Closing request...");
+      const { error } = await supabase
+        .from('support')
+        .update({ status: 'closed' })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast.dismiss();
+      toast.success("Support request closed.");
+      fetchSupportRequests(); 
+    } catch (error) {
+      toast.dismiss();
+      toast.error("Failed to close request.");
+      console.error(error);
+    }
+  };
+
+  const handleViewTicket = (ticket: any) => {
+    setSelectedTicket(ticket);
+    setIsViewModalOpen(true);
   };
 
   const handleAddUser = async () => {
@@ -242,6 +342,14 @@ export default function AdminDashboard() {
     }
   };
 
+  const pieData = [
+    { name: "Helpful", value: feedbackStats.helpful, color: "#22c55e" }, 
+    { name: "Needs Improvement", value: feedbackStats.notHelpful, color: "#ef4444" }, 
+  ];
+  
+  const helpfulPercent = feedbackStats.total > 0 ? Math.round((feedbackStats.helpful / feedbackStats.total) * 100) : 0;
+  const notHelpfulPercent = feedbackStats.total > 0 ? Math.round((feedbackStats.notHelpful / feedbackStats.total) * 100) : 0;
+
   if (loading && dynamicMetrics[0].value === "--") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -304,52 +412,54 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader><CardTitle>System Loan Applications</CardTitle></CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Applicant</TableHead>
-                    <TableHead>Credit Score</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Officer Decision</TableHead>
-                    <TableHead>Applied Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <AnimatePresence>
-                    {loading ? (
-                       <TableRow>
-                         <TableCell colSpan={5} className="text-center py-12">
-                           <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-                           <p className="text-sm text-muted-foreground mt-2">Loading records...</p>
-                         </TableCell>
-                       </TableRow>
-                    ) : filteredApplicants.length > 0 ? (
-                      filteredApplicants.map((applicant, index) => (
-                        <motion.tr key={applicant.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3, delay: index * 0.1 }} className="hover:bg-muted/50 transition-colors">
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{applicant.name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">ID: {applicant.id ? String(applicant.id).slice(0, 8) : '...'}...</p>
-                            </div>
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Applicant</TableHead>
+                      <TableHead>Credit Score</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Officer Decision</TableHead>
+                      <TableHead>Applied Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <AnimatePresence>
+                      {loading ? (
+                         <TableRow>
+                           <TableCell colSpan={5} className="text-center py-12">
+                             <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+                             <p className="text-sm text-muted-foreground mt-2">Loading records...</p>
+                           </TableCell>
+                         </TableRow>
+                      ) : filteredApplicants.length > 0 ? (
+                        filteredApplicants.map((applicant, index) => (
+                          <motion.tr key={applicant.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3, delay: index * 0.1 }} className="hover:bg-muted/50 transition-colors">
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{applicant.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">ID: {applicant.id ? String(applicant.id).slice(0, 8) : '...'}...</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {applicant.score ? <Badge variant="outline" className="font-mono">{applicant.score}</Badge> : <span className="text-muted-foreground text-sm italic">Pending AI</span>}
+                            </TableCell>
+                            <TableCell>₹{Number(applicant.loanAmount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell><Badge className={getStatusColor(applicant.status)} variant="outline">{(applicant.status || 'pending').replace('_', ' ').toUpperCase()}</Badge></TableCell>
+                            <TableCell>{applicant.lastActivity}</TableCell>
+                          </motion.tr>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                            <p>No applications found.</p>
                           </TableCell>
-                          <TableCell>
-                            {applicant.score ? <Badge variant="outline" className="font-mono">{applicant.score}</Badge> : <span className="text-muted-foreground text-sm italic">Pending AI</span>}
-                          </TableCell>
-                          <TableCell>₹{Number(applicant.loanAmount).toLocaleString('en-IN')}</TableCell>
-                          <TableCell><Badge className={getStatusColor(applicant.status)} variant="outline">{(applicant.status || 'pending').replace('_', ' ').toUpperCase()}</Badge></TableCell>
-                          <TableCell>{applicant.lastActivity}</TableCell>
-                        </motion.tr>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                          <p>No applications found.</p>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </AnimatePresence>
-                </TableBody>
-              </Table>
+                        </TableRow>
+                      )}
+                    </AnimatePresence>
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -414,7 +524,6 @@ export default function AdminDashboard() {
                     officersList.map((officer) => (
                       <div 
                         key={officer.id} 
-                        // UPDATED: HIGHLIGHT USERS WHO REQUESTED DELETION
                         className={`flex items-center justify-between p-3 rounded-lg border group ${officer.deletion_requested ? 'border-red-300 bg-red-50/50 dark:bg-red-950/20' : ''}`}
                       >
                         <div>
@@ -457,6 +566,109 @@ export default function AdminDashboard() {
           </motion.div>
         </div>
 
+        {/* User Support Requests Section */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.45 }} className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageSquare className="h-5 w-5" />
+                <span>User Support Requests</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ticket ID</TableHead>
+                      <TableHead>Applicant Info</TableHead>
+                      <TableHead>Subject & Message</TableHead>
+                      <TableHead>Status & Document</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {supportRequests.length > 0 ? supportRequests.map((req) => {
+                      const isClosed = req.status?.toLowerCase() === 'closed';
+
+                      return (
+                        <TableRow key={req.id}>
+                          <TableCell className="align-top">
+                            <p className="font-mono text-xs text-muted-foreground" title={req.id}>
+                              {req.id.slice(0, 8)}...
+                            </p>
+                            {req.application_id && (
+                              <p className="text-xs text-primary mt-1 font-mono">
+                                App: {req.application_id.slice(0, 8)}...
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <p className="font-medium text-sm">{req.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{req.email}</p>
+                            {req.phone && <p className="text-xs text-muted-foreground">{req.phone}</p>}
+                          </TableCell>
+                          <TableCell className="max-w-sm align-top">
+                            <p className="font-medium text-sm truncate">{req.subject}</p>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
+                              {req.message}
+                            </p>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Badge 
+                                variant={isClosed ? 'destructive' : 'default'} 
+                                className={isClosed ? 'bg-red-100 text-red-700 border-transparent hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 border-transparent hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400'}
+                              >
+                                {isClosed ? 'Closed' : (req.status || 'Open')}
+                              </Badge>
+                              
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-6 text-xs px-2 text-primary border-primary/20 hover:bg-primary/10" 
+                                onClick={() => handleViewTicket(req)}
+                              >
+                                <Eye className="h-3 w-3 mr-1" /> View
+                              </Button>
+
+                              {!isClosed && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-6 text-xs px-2 text-green-600 border-green-200 hover:bg-green-50" 
+                                  onClick={() => handleCloseSupportRequest(req.id)}
+                                >
+                                  <CheckCircle className="h-3 w-3 mr-1" /> Close
+                                </Button>
+                              )}
+                            </div>
+                            {req.evidence_path && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-7 text-xs w-full justify-start" 
+                                onClick={() => handleViewSupportDocument(req.evidence_path)}
+                              >
+                                <Eye className="h-3 w-3 mr-2" /> View Evidence
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                          No support requests found.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
         {/* Audit Logs */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
           <Card>
@@ -480,46 +692,191 @@ export default function AdminDashboard() {
           </Card>
         </motion.div>
 
-        {/* Model Management */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }}>
-          <Card>
-            <CardHeader><CardTitle className="flex items-center space-x-2"><Settings className="h-5 w-5" /><span>Model Management</span></CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label>Select Model Version</Label>
-                  <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {modelVersions.map((version) => (
-                        <SelectItem key={version.version} value={version.version}>
-                          {version.version} - {version.status} ({version.accuracy}% accuracy)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex space-x-2">
-                  <Dialog open={isDeployModalOpen} onOpenChange={setIsDeployModalOpen}>
-                    <DialogTrigger asChild><Button className="flex-1"><Upload className="h-4 w-4 mr-2" />Deploy Model</Button></DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader><DialogTitle>Deploy Model</DialogTitle></DialogHeader>
-                      <div className="space-y-4">
-                        <p>Are you sure you want to deploy model {selectedModel}?</p>
-                        <div className="flex justify-end space-x-2">
-                          <Button variant="outline" onClick={() => setIsDeployModalOpen(false)}>Cancel</Button>
-                          <Button onClick={handleModelDeploy}>Confirm Deploy</Button>
+        {/* --- GRID FOR MODEL MANAGEMENT & AI FEEDBACK --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          
+          {/* Model Management */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }}>
+            <Card className="h-full">
+              <CardHeader><CardTitle className="flex items-center space-x-2"><Settings className="h-5 w-5" /><span>Model Management</span></CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Select Model Version</Label>
+                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {modelVersions.map((version) => (
+                          <SelectItem key={version.version} value={version.version}>
+                            {version.version} - {version.status} ({version.accuracy}% accuracy)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex space-x-2 mt-6">
+                    <Dialog open={isDeployModalOpen} onOpenChange={setIsDeployModalOpen}>
+                      <DialogTrigger asChild><Button className="flex-1"><Upload className="h-4 w-4 mr-2" />Deploy Model</Button></DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader><DialogTitle>Deploy Model</DialogTitle></DialogHeader>
+                        <div className="space-y-4">
+                          <p>Are you sure you want to deploy model {selectedModel}?</p>
+                          <div className="flex justify-end space-x-2">
+                            <Button variant="outline" onClick={() => setIsDeployModalOpen(false)}>Cancel</Button>
+                            <Button onClick={handleModelDeploy}>Confirm Deploy</Button>
+                          </div>
                         </div>
+                      </DialogContent>
+                    </Dialog>
+                    <Button variant="destructive" className="flex-1" onClick={handleModelRollback}><RotateCcw className="h-4 w-4 mr-2" />Rollback</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* AI User Feedback Card */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.65 }}>
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="h-5 w-5" />
+                    <span>User Feedback for AI Explanation</span>
+                  </div>
+                  <Badge variant="outline">Total: {feedbackStats.total}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {feedbackStats.total > 0 ? (
+                  <>
+                    <div className="h-[180px] w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip 
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            itemStyle={{ color: '#000', fontWeight: 'bold' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Stats Legend */}
+                    <div className="flex justify-center gap-8 mt-2 border-t pt-4">
+                      <div className="text-center">
+                        <div className="flex items-center gap-2 justify-center mb-1 text-sm text-muted-foreground">
+                          <span className="w-3 h-3 rounded-full bg-green-500 inline-block shadow-sm"></span> 
+                          Helpful
+                        </div>
+                        <p className="text-xl font-bold">
+                          {feedbackStats.helpful} <span className="text-sm font-normal text-muted-foreground ml-1">({helpfulPercent}%)</span>
+                        </p>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                  <Button variant="destructive" className="flex-1" onClick={handleModelRollback}><RotateCcw className="h-4 w-4 mr-2" />Rollback</Button>
+                      
+                      <div className="w-px bg-border"></div>
+
+                      <div className="text-center">
+                        <div className="flex items-center gap-2 justify-center mb-1 text-sm text-muted-foreground">
+                          <span className="w-3 h-3 rounded-full bg-red-500 inline-block shadow-sm"></span> 
+                          Not Helpful
+                        </div>
+                        <p className="text-xl font-bold">
+                          {feedbackStats.notHelpful} <span className="text-sm font-normal text-muted-foreground ml-1">({notHelpfulPercent}%)</span>
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
+                    <p>No feedback collected yet.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+          
+        </div>
+      </div>
+
+      {/* Support Request Detail Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Support Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedTicket && (
+            <div className="space-y-6 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg border">
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Ticket ID</Label>
+                  <p className="font-mono text-sm mt-1">{selectedTicket.id}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Application ID</Label>
+                  <p className="font-mono text-sm mt-1 text-primary">{selectedTicket.application_id || 'Not Provided'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Full Name</Label>
+                  <p className="text-sm mt-1 font-medium">{selectedTicket.full_name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Contact Details</Label>
+                  <p className="text-sm mt-1">{selectedTicket.email}</p>
+                  {selectedTicket.phone && <p className="text-sm mt-0.5">{selectedTicket.phone}</p>}
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Current Status</Label>
+                  <div className="mt-1">
+                    <Badge variant={selectedTicket.status?.toLowerCase() === 'closed' ? 'destructive' : 'default'}>
+                      {selectedTicket.status || 'Open'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+
+              <div>
+                <Label className="text-sm text-muted-foreground">Subject</Label>
+                <p className="font-medium text-lg mt-1">{selectedTicket.subject}</p>
+              </div>
+
+              <div>
+                <Label className="text-sm text-muted-foreground">Message</Label>
+                <div className="mt-2 p-4 bg-background border rounded-lg whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 min-h-[100px]">
+                  {selectedTicket.message}
+                </div>
+              </div>
+
+              {selectedTicket.evidence_path && (
+                <div className="pt-4 border-t">
+                  <Label className="text-sm text-muted-foreground mb-3 block">Attached Evidence</Label>
+                  <Button 
+                    variant="outline" 
+                    className="w-full sm:w-auto gap-2"
+                    onClick={() => handleViewSupportDocument(selectedTicket.evidence_path)}
+                  >
+                    <Eye className="h-4 w-4" /> View Uploaded Document
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

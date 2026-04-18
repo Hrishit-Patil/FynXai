@@ -52,6 +52,7 @@ import html2canvas from "html2canvas";
 
 // --- Types ---
 interface ApplicationData {
+  applicationId: string; // NEW
   name: string;
   pan: string;
   score: number;
@@ -100,9 +101,33 @@ export default function ApplicationResult() {
 
   const [xaiMode, setXaiMode] = useState<"SHAP" | "LIME">("SHAP");
 
+  // Feedback States
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   useEffect(() => {
-    if (appId) fetchResultData();
+    if (appId) {
+      fetchResultData();
+      checkFeedbackStatus(); 
+    }
   }, [appId]);
+
+  const checkFeedbackStatus = async () => {
+    if (!appId) return;
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('id')
+        .eq('application_id', appId)
+        .maybeSingle();
+
+      if (data) {
+        setFeedbackSubmitted(true);
+      }
+    } catch (err) {
+      console.error("Error checking feedback status:", err);
+    }
+  };
 
   const fetchResultData = async () => {
     try {
@@ -110,7 +135,7 @@ export default function ApplicationResult() {
 
       const { data: loan, error: loanError } = await supabase
         .from('loans')
-        .select('first_name, last_name, pan_number, credit_score, loan_status, officer_decision, officer_comments, loan_amount, loan_tenure, sanctioned_amount, interest_rate')
+        .select('application_id, first_name, last_name, pan_number, credit_score, loan_status, officer_decision, officer_comments, loan_amount, loan_tenure, sanctioned_amount, interest_rate')
         .eq('application_id', appId)
         .single();
 
@@ -138,6 +163,7 @@ export default function ApplicationResult() {
         : "****";
 
       setData({
+        applicationId: loan.application_id || appId || "Unknown", // UPDATED
         name: `${loan.first_name} ${loan.last_name}`,
         pan: maskedPan,
         score: loan.credit_score || 0,
@@ -159,6 +185,48 @@ export default function ApplicationResult() {
       toast({ title: "Error", description: "Failed to load results.", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle Feedback Submission
+  const handleFeedback = async (isHelpful: boolean) => {
+    if (!appId) return;
+    
+    setIsSubmittingFeedback(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({ title: "Authentication Required", description: "Please log in to submit feedback.", variant: "destructive" });
+        setIsSubmittingFeedback(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          user_id: user.id,
+          application_id: appId,
+          is_helpful: isHelpful
+        });
+
+      if (error) {
+        // Handle Postgres Unique Constraint Violation (Code 23505)
+        if (error.code === '23505') {
+          setFeedbackSubmitted(true);
+          toast({ title: "Already Submitted", description: "Feedback for this application has already been recorded." });
+          return;
+        }
+        throw error;
+      }
+
+      setFeedbackSubmitted(true);
+      toast({ title: "Thank You", description: "Your feedback has been recorded." });
+    } catch (err: any) {
+      console.error("Feedback error:", err);
+      toast({ title: "Error", description: "Failed to submit feedback. Please try again later.", variant: "destructive" });
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -218,12 +286,13 @@ export default function ApplicationResult() {
     doc.setTextColor(50, 50, 50);
     doc.text(`Applicant Name: ${data.name}`, 14, 40);
     doc.text(`PAN Number: ${data.pan}`, 14, 48);
+    doc.text(`Application ID: ${data.applicationId}`, 14, 56); // Added to PDF
     
     doc.setFont("helvetica", "bold");
-    doc.text(`AI Credit Score: ${data.score} / 900`, 14, 56);
-    doc.text(`AI Recommendation: ${(data.modelStatus || "Pending").toUpperCase()}`, 14, 64);
+    doc.text(`AI Credit Score: ${data.score} / 900`, 14, 64);
+    doc.text(`AI Recommendation: ${(data.modelStatus || "Pending").toUpperCase()}`, 14, 72);
     
-    let currentY = 72;
+    let currentY = 80;
     if (data.officerDecision) {
         doc.text(`Final Officer Decision: ${data.officerDecision.toUpperCase()}`, 14, currentY);
         currentY += 8;
@@ -354,7 +423,6 @@ export default function ApplicationResult() {
     <div className="min-h-screen bg-background text-foreground py-10 px-4">
       <div className="max-w-5xl mx-auto space-y-8">
         
-        {/* UPDATED: Dynamic Hero Card (Light & Dark Mode) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <Card className="p-8 border-none shadow-2xl bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 text-slate-900 dark:text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
@@ -370,7 +438,10 @@ export default function ApplicationResult() {
                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-2">
                   Credit Application Result
                 </h1>
-                <p className="text-muted-foreground font-mono mb-6">PAN: {data.pan}</p>
+                
+                {/* UPDATED: Added Application ID display below PAN */}
+                <p className="text-muted-foreground font-mono mb-1">PAN: {data.pan}</p>
+                <p className="text-muted-foreground font-mono mb-6 text-sm">Application ID: {data.applicationId}</p>
                 
                 <div className="flex flex-wrap gap-6 p-4 bg-slate-900/5 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 backdrop-blur-md">
                     {renderDecisionBadge(data.modelStatus, "AI Recommendation")}
@@ -439,7 +510,6 @@ export default function ApplicationResult() {
                     </Card>
                 </motion.div>
             )}
-
 
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.1 }} className="grid gap-6">
                 <Card className="p-6 border-l-4 border-l-primary shadow-md bg-gradient-to-r from-primary/5 to-transparent">
@@ -636,31 +706,84 @@ export default function ApplicationResult() {
           </div>
         </div>
 
-
-
         {/* PATH TO APPROVAL */}
-            {data.modelStatus !== 'approved' && data.counterfactuals && data.counterfactuals.length > 0 && (
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.15 }} className="mb-8">
-                    <Card className="p-6 border-l-4 border-l-blue-500 shadow-md bg-blue-50/30 dark:bg-blue-950/20">
-                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                            <Target className="w-6 h-6" /> Suggestions to Improve Your Score
-                        </h2>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            Our AI has calculated the fastest ways to improve your credit profile. Fulfilling any ONE of these options can move your application into the approval range:
-                        </p>
-                        <div className="grid gap-4 md:grid-cols-1">
-                            {data.counterfactuals.map((cf, idx) => (
-                                <div key={idx} className="p-4 bg-background rounded-xl border border-blue-200 dark:border-blue-800 flex items-start gap-3 shadow-sm">
-                                    <Badge className="bg-blue-600 shrink-0 mt-0.5">Option {idx + 1}</Badge>
-                                    <p className="text-sm font-medium leading-relaxed">{cf}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                </motion.div>
-            )}
+        {data.modelStatus !== 'approved' && data.counterfactuals && data.counterfactuals.length > 0 && (
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.15 }} className="mb-8">
+                <Card className="p-6 border-l-4 border-l-blue-500 shadow-md bg-blue-50/30 dark:bg-blue-950/20">
+                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                        <Target className="w-6 h-6" /> Suggestions to Improve Your Score
+                    </h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        Our AI has calculated the fastest ways to improve your credit profile. Fulfilling any ONE of these options can move your application into the approval range:
+                    </p>
+                    <div className="grid gap-4 md:grid-cols-1">
+                        {data.counterfactuals.map((cf, idx) => (
+                            <div key={idx} className="p-4 bg-background rounded-xl border border-blue-200 dark:border-blue-800 flex items-start gap-3 shadow-sm">
+                                <Badge className="bg-blue-600 shrink-0 mt-0.5">Option {idx + 1}</Badge>
+                                <p className="text-sm font-medium leading-relaxed">{cf}</p>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            </motion.div>
+        )}
 
-        {/* Feedback Widget */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
+          <Card className="p-6">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+              <Target className="w-6 h-6 text-primary" />
+              Credit Health Basics
+            </h2>
+
+            <div className="space-y-6">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="p-4 glass rounded-lg text-center border hover:border-primary/50 transition-colors cursor-default">
+                  <h4 className="font-semibold mb-2">Improve Credit History</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Ensure all EMIs are paid on time. A single bounce can drop score by 30+ points.
+                  </p>
+                </div>
+                <div className="p-4 glass rounded-lg text-center border hover:border-primary/50 transition-colors cursor-default">
+                  <h4 className="font-semibold mb-2">
+                    Reduce Credit Utilization
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Try to keep credit card usage below 30% of your total limit.
+                  </p>
+                </div>
+                <div className="p-4 glass rounded-lg text-center border hover:border-primary/50 transition-colors cursor-default">
+                  <h4 className="font-semibold mb-2">Maintain Balance</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Avoid letting your bank balance drop too low at month end.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+        
+        {/* Hidden Chart strictly for high-quality PDF Export Capture */}
+        <div style={{ position: "absolute", top: "-9999px", left: "-9999px" }}>
+          
+          {/* Chart: SHAP vs LIME Comparison */}
+          {comparisonData && comparisonData.length > 0 && (
+            <div id="pdf-compare-capture" style={{ width: "800px", height: "600px", backgroundColor: "#ffffff", padding: "20px" }}>
+              <h4 style={{ fontFamily: "sans-serif", fontSize: "18px", marginBottom: "20px", color: "#0f172a" }}>AI Model Comparison (SHAP vs LIME)</h4>
+              <BarChart width={760} height={550} data={comparisonData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
+                <XAxis type="number" tick={{ fill: '#64748b' }} />
+                <YAxis dataKey="feature" type="category" width={200} tick={{ fontSize: 12, fill: '#0f172a', fontWeight: 'bold' }} />
+                <Legend />
+                <Bar dataKey="SHAP" fill="#2563eb" name="SHAP Impact" />
+                <Bar dataKey="LIME" fill="#9333ea" name="LIME Impact" />
+              </BarChart>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* Feedback Widget */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-4xl">
           <motion.div
@@ -675,39 +798,41 @@ export default function ApplicationResult() {
               <p className="text-muted-foreground mb-6">
                 Your feedback helps us improve our support and explainability.
               </p>
-              <div className="flex gap-4 justify-center">
-                <Button variant="outline" className="hover-lift">
-                  👍 Yes, helpful
-                </Button>
-                <Button variant="outline" className="hover-lift">
-                  👎 Needs improvement
-                </Button>
-              </div>
+              
+              {feedbackSubmitted ? (
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex items-center justify-center text-green-600 bg-green-50 dark:bg-green-900/20 py-3 px-6 rounded-lg max-w-sm mx-auto border border-green-200 dark:border-green-800"
+                >
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  <span className="font-medium">Thank you for your feedback!</span>
+                </motion.div>
+              ) : (
+                <div className="flex gap-4 justify-center">
+                  <Button 
+                    variant="outline" 
+                    className="hover-lift"
+                    onClick={() => handleFeedback(true)}
+                    disabled={isSubmittingFeedback}
+                  >
+                    👍 Yes, helpful
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="hover-lift"
+                    onClick={() => handleFeedback(false)}
+                    disabled={isSubmittingFeedback}
+                  >
+                    👎 Needs improvement
+                  </Button>
+                </div>
+              )}
+              
             </Card>
           </motion.div>
         </div>
       </section>
-        {/* Hidden Chart strictly for high-quality PDF Export Capture */}
-        <div style={{ position: "absolute", top: "-9999px", left: "-9999px" }}>
-          
-          {/* Chart: SHAP vs LIME Comparison (Standalone SHAP removed as requested) */}
-          {comparisonData && comparisonData.length > 0 && (
-            <div id="pdf-compare-capture" style={{ width: "800px", height: "600px", backgroundColor: "#ffffff", padding: "20px" }}>
-              <h4 style={{ fontFamily: "sans-serif", fontSize: "18px", marginBottom: "20px", color: "#0f172a" }}>AI Model Comparison (SHAP vs LIME)</h4>
-              <BarChart width={760} height={550} data={comparisonData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={true} />
-                <XAxis type="number" tick={{ fill: '#64748b' }} />
-                {/* PDF Chart YAxis - Using a deep slate bold color for excellent print contrast */}
-                <YAxis dataKey="feature" type="category" width={200} tick={{ fontSize: 12, fill: '#0f172a', fontWeight: 'bold' }} />
-                <Legend />
-                <Bar dataKey="SHAP" fill="#2563eb" name="SHAP Impact" />
-                <Bar dataKey="LIME" fill="#9333ea" name="LIME Impact" />
-              </BarChart>
-            </div>
-          )}
-
-        </div>
-      </div>
     </div>
   );
 }
