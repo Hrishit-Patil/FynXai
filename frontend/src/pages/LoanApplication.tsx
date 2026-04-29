@@ -25,7 +25,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/supabaseClient";
+import { supabase, apiBaseUrl } from "@/supabaseClient";
 import { toast } from "sonner";
 
 export default function LoanApplication() {
@@ -343,7 +343,7 @@ export default function LoanApplication() {
       try {
         console.log("🚀 Sending request to OCR Backend...");
 
-        await fetch("http://127.0.0.1:8000/trigger-ocr", {
+        await fetch(`${apiBaseUrl}/trigger-ocr`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
