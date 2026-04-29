@@ -1,12 +1,14 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Response, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from ocr_service import process_loan_application
 from scoring_service import calculate_credit_score, supabase
 
-app = FastAPI()
+# Added redirect_slashes=False to prevent "Failed to fetch" on slash mismatches
+app = FastAPI(redirect_slashes=False)
 
+# Ensure CORS is the very first thing configured
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,6 +16,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- CRITICAL: Manual Options Handler for Browsers ---
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, GET, OPTIONS, DELETE",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 class LoanRequest(BaseModel):
     loan_id: str
@@ -33,6 +47,7 @@ def home():
 @app.post("/trigger-ocr")
 async def trigger_ocr(request: LoanRequest, background_tasks: BackgroundTasks):
     print(f"\n[API] 🔔 OCR Triggered for: {request.loan_id}")
+    # Note: Ensure Hugging Face Space has enough RAM for EasyOCR in background
     background_tasks.add_task(process_loan_application, request.loan_id)
     return {"message": "OCR processing started", "loan_id": request.loan_id}
 
@@ -42,6 +57,8 @@ async def trigger_scoring(request: LoanRequest, background_tasks: BackgroundTask
     print(f"\n[API] 🎲 Scoring Triggered for: {request.loan_id}")
     background_tasks.add_task(calculate_credit_score, request.loan_id)
     return {"message": "Credit Scoring started", "loan_id": request.loan_id}
+
+#--------------------------------------------------------------------------------
 
 # --- Admin Stats Calculation API ---
 @app.get("/admin/stats")
