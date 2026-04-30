@@ -277,7 +277,7 @@ Backend `.env`:
 
 ```env
 SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_public_key
+SUPABASE_KEY=your_supabase_publishable_key
 SUPABASE_SECRET_KEY=your_supabase_secret_key
 ```
 
