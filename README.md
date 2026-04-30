@@ -278,14 +278,14 @@ Backend `.env`:
 ```env
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_public_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+SUPABASE_SECRET_KEY=your_supabase_secret_key
 ```
 
 Frontend `.env`:
 
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_public_key
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_publishable_key
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
